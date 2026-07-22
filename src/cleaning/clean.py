@@ -43,6 +43,31 @@ def filter_orders(df: pd.DataFrame) -> pd.DataFrame:
     return filtered
 
 
+UNUSED_COLUMNS = [
+    "review_comment_title",
+    "review_comment_message",
+    "order_approved_at",
+    "order_delivered_carrier_date",
+]
+
+
+def drop_unused_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 2 : supprime les colonnes trop creuses ou hors scope ML.
+
+    review_comment_title (88% NaN) et review_comment_message (58% NaN) sont
+    du texte libre non structure, trop creux pour etre impute sans biais.
+    order_approved_at et order_delivered_carrier_date sont des etapes
+    intermediaires du cycle de livraison, redondantes avec
+    order_delivered_customer_date / order_estimated_delivery_date pour la
+    suite du projet (segmentation, churn).
+    """
+    before_cols = df.shape[1]
+    dropped = [c for c in UNUSED_COLUMNS if c in df.columns]
+    df = df.drop(columns=dropped)
+    print(f"[ETAPE 2] Suppression colonnes : {before_cols} -> {df.shape[1]} colonnes | supprimees : {dropped}")
+    return df
+
+
 def run_cleaning() -> pd.DataFrame:
     print(f"=== Nettoyage Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -50,6 +75,7 @@ def run_cleaning() -> pd.DataFrame:
     print(f"Chargement : {df.shape[0]} lignes x {df.shape[1]} colonnes")
 
     df = filter_orders(df)
+    df = drop_unused_columns(df)
 
     return df
 
