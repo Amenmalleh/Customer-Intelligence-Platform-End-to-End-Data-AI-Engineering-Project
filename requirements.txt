@@ -1,1 +1,18 @@
 # Les dépendances seront ajoutées progressivement à chaque phase du projet.
+
+# Phase 2 — Ingestion des données Olist
+pandas==3.0.3
+numpy==2.5.1
+openpyxl==3.1.5
+
+# matplotlib et ipykernel ne faisaient pas partie de la liste initiale mais
+# sont necessaires pour executer notebooks/01_ingestion_exploration.ipynb
+# (visualisations + kernel Jupyter).
+matplotlib==3.11.1
+ipykernel==7.3.0
+
+# Dépendances transitives de pandas / openpyxl (épinglées pour reproductibilité)
+python-dateutil==2.9.0.post0
+six==1.17.0
+tzdata==2026.3
+et_xmlfile==2.0.0

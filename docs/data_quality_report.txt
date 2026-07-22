@@ -1,0 +1,50 @@
+RAPPORT DE QUALITE DES DONNEES - Olist (dataset merge)
+Date du rapport : 2026-07-21T13:24:05
+Fichier analyse : C:\Users\amenm\Desktop\Customer Intelligence Platform\Customer-Intelligence-Platform-End-to-End-Data-AI-Engineering-Project\data\processed\olist_merged.csv
+Shape : 119143 lignes x 37 colonnes
+
+Valeurs manquantes par colonne (triees par % decroissant) :
+  - review_comment_title: 105154 (88.26%)
+  - review_comment_message: 68898 (57.83%)
+  - order_delivered_customer_date: 3421 (2.87%)
+  - product_category_name_english: 2567 (2.15%)
+  - product_category_name: 2542 (2.13%)
+  - product_photos_qty: 2542 (2.13%)
+  - product_name_lenght: 2542 (2.13%)
+  - product_description_lenght: 2542 (2.13%)
+  - order_delivered_carrier_date: 2086 (1.75%)
+  - review_creation_date: 997 (0.84%)
+  - review_id: 997 (0.84%)
+  - review_answer_timestamp: 997 (0.84%)
+  - review_score: 997 (0.84%)
+  - product_width_cm: 853 (0.72%)
+  - product_weight_g: 853 (0.72%)
+  - product_length_cm: 853 (0.72%)
+  - product_height_cm: 853 (0.72%)
+  - freight_value: 833 (0.7%)
+  - seller_id: 833 (0.7%)
+  - product_id: 833 (0.7%)
+  - price: 833 (0.7%)
+  - shipping_limit_date: 833 (0.7%)
+  - order_item_id: 833 (0.7%)
+  - order_approved_at: 177 (0.15%)
+  - order_id: 0 (0.0%)
+  - order_purchase_timestamp: 0 (0.0%)
+  - order_status: 0 (0.0%)
+  - customer_id: 0 (0.0%)
+  - customer_state: 0 (0.0%)
+  - payment_installments: 3 (0.0%)
+  - payment_type: 3 (0.0%)
+  - payment_sequential: 3 (0.0%)
+  - order_estimated_delivery_date: 0 (0.0%)
+  - customer_unique_id: 0 (0.0%)
+  - customer_zip_code_prefix: 0 (0.0%)
+  - customer_city: 0 (0.0%)
+  - payment_value: 3 (0.0%)
+
+Doublons sur order_id : 19702
+
+Observations generales :
+  - Les doublons sur order_id sont attendus a ce stade : une commande peut avoir plusieurs articles (order_items), plusieurs versements de paiement (order_payments) ou plusieurs avis (order_reviews), ce qui provoque un fan-out lors du merge. Ce n'est pas une anomalie de qualite en soi, mais un point a garder en tete pour l'agregation au niveau commande/client dans les phases suivantes.
+  - Colonnes avec le plus de valeurs manquantes : review_comment_title, review_comment_message, order_delivered_customer_date, product_category_name_english, product_category_name.
+  - Aucune transformation ni nettoyage n'a ete effectue a ce stade (Phase 2 = ingestion, merge et observation uniquement).
