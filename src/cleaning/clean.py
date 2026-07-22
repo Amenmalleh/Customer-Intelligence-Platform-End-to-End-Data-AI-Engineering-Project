@@ -167,6 +167,28 @@ def aggregate_by_customer(df: pd.DataFrame) -> pd.DataFrame:
     return aggregated
 
 
+def detect_outliers(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 6 : detecte (sans supprimer) les outliers sur total_spent et
+    total_orders au-dela de Q3 + 3*IQR, un seuil large qui ne signale que les
+    valeurs vraiment extremes (gros comptes / achats en volume) plutot que la
+    variabilite normale des clients."""
+    for col in ("total_spent", "total_orders"):
+        q1 = df[col].quantile(0.25)
+        q3 = df[col].quantile(0.75)
+        iqr = q3 - q1
+        threshold = q3 + 3 * iqr
+        outliers = df[df[col] > threshold].sort_values(col, ascending=False)
+        print(
+            f"[ETAPE 6] {col} : Q1={q1:.2f} Q3={q3:.2f} IQR={iqr:.2f} "
+            f"seuil={threshold:.2f} -> {len(outliers)} outliers detectes"
+        )
+        if not outliers.empty:
+            print(f"[ETAPE 6] {col} : 20 outliers les plus extremes (sur {len(outliers)}) :")
+            print(outliers.head(20).to_string())
+
+    return df
+
+
 def run_cleaning() -> pd.DataFrame:
     print(f"=== Nettoyage Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -178,6 +200,7 @@ def run_cleaning() -> pd.DataFrame:
     df = convert_dtypes(df)
     df = handle_missing_values(df)
     df = aggregate_by_customer(df)
+    df = detect_outliers(df)
 
     return df
 
