@@ -127,6 +127,46 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _most_frequent(s: pd.Series):
+    """Mode d'une serie, ou NA si le groupe est entierement vide (evite un
+    crash sur .mode().iloc[0] quand un client n'a aucune categorie connue)."""
+    s = s.dropna()
+    if s.empty:
+        return pd.NA
+    return s.mode().iloc[0]
+
+
+def aggregate_by_customer(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 5 : deduplication intelligente -> une ligne par customer_unique_id.
+
+    La table source a du fan-out (plusieurs lignes par order_id a cause des
+    joins order_items/order_payments/order_reviews). On agrege donc au
+    niveau client plutot que de dedupliquer naivement.
+    """
+    before = len(df)
+    n_customers_before = df["customer_unique_id"].nunique()
+
+    aggregated = df.groupby("customer_unique_id").agg(
+        total_orders=("order_id", "nunique"),
+        total_spent=("payment_value", "sum"),
+        avg_review_score=("review_score", "mean"),
+        first_order_date=("order_purchase_timestamp", "min"),
+        last_order_date=("order_purchase_timestamp", "max"),
+        most_frequent_category=("product_category_name_english", _most_frequent),
+        customer_state=("customer_state", "first"),
+    ).reset_index()
+
+    config.PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    aggregated.to_csv(CUSTOMERS_CLEAN_FILE, index=False, encoding="utf-8-sig")
+
+    print(
+        f"[ETAPE 5] Agregation par customer_unique_id : {before} lignes "
+        f"({n_customers_before} clients) -> {len(aggregated)} clients"
+    )
+    print(f"[ETAPE 5] Sauvegarde : {CUSTOMERS_CLEAN_FILE}")
+    return aggregated
+
+
 def run_cleaning() -> pd.DataFrame:
     print(f"=== Nettoyage Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -137,6 +177,7 @@ def run_cleaning() -> pd.DataFrame:
     df = drop_unused_columns(df)
     df = convert_dtypes(df)
     df = handle_missing_values(df)
+    df = aggregate_by_customer(df)
 
     return df
 
