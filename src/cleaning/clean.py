@@ -68,6 +68,28 @@ def drop_unused_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+DATETIME_COLUMNS = [
+    "order_purchase_timestamp",
+    "order_delivered_customer_date",
+    "order_estimated_delivery_date",
+    "review_creation_date",
+]
+
+
+def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 3 : convertit les colonnes de dates en datetime.
+
+    errors='coerce' transforme un format invalide en NaT plutot que de
+    lever une exception, dans le meme esprit que le reste du pipeline
+    (logguer, ne pas planter).
+    """
+    df = df.copy()
+    for col in DATETIME_COLUMNS:
+        df[col] = pd.to_datetime(df[col], errors="coerce")
+    print(f"[ETAPE 3] Conversion en datetime (errors='coerce') : {DATETIME_COLUMNS}")
+    return df
+
+
 def run_cleaning() -> pd.DataFrame:
     print(f"=== Nettoyage Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -76,6 +98,7 @@ def run_cleaning() -> pd.DataFrame:
 
     df = filter_orders(df)
     df = drop_unused_columns(df)
+    df = convert_dtypes(df)
 
     return df
 
