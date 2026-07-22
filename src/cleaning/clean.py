@@ -90,6 +90,43 @@ def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 4 : traite les valeurs manquantes restantes, dans un ordre precis.
+
+    L'ordre compte : le drop sur price doit precede le fillna de
+    payment_value pour garantir qu'on ne comble jamais avec un NaN.
+
+    - review_score NaN -> mediane (resiste mieux qu'une moyenne a la
+      distribution asymetrique des scores, cf. docs/data_quality_report.txt).
+    - order_delivered_customer_date NaN -> inchange (commande en transit
+      legitime, pas une erreur ; imputer casserait le signal de delai de
+      livraison).
+    - price NaN -> lignes supprimees (un prix manquant sur une ligne
+      order_item signale une jointure corrompue, pas une valeur recuperable).
+    - payment_value NaN -> comble avec price (des lors que price n'est
+      jamais NaN a ce stade).
+    """
+    df = df.copy()
+
+    review_score_median = df["review_score"].median()
+    n_review_score_na = df["review_score"].isna().sum()
+    df["review_score"] = df["review_score"].fillna(review_score_median)
+    print(f"[ETAPE 4] review_score : {n_review_score_na} NaN combles avec la mediane ({review_score_median})")
+
+    n_delivery_na = df["order_delivered_customer_date"].isna().sum()
+    print(f"[ETAPE 4] order_delivered_customer_date : {n_delivery_na} NaN laisses tels quels (commandes en transit)")
+
+    before = len(df)
+    df = df.dropna(subset=["price"])
+    print(f"[ETAPE 4] price : {before - len(df)} lignes supprimees (prix manquant) -> {len(df)} lignes")
+
+    n_payment_na = df["payment_value"].isna().sum()
+    df["payment_value"] = df["payment_value"].fillna(df["price"])
+    print(f"[ETAPE 4] payment_value : {n_payment_na} NaN combles avec price")
+
+    return df
+
+
 def run_cleaning() -> pd.DataFrame:
     print(f"=== Nettoyage Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -99,6 +136,7 @@ def run_cleaning() -> pd.DataFrame:
     df = filter_orders(df)
     df = drop_unused_columns(df)
     df = convert_dtypes(df)
+    df = handle_missing_values(df)
 
     return df
 
