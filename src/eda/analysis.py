@@ -131,3 +131,66 @@ def plot_spent_by_state(df: pd.DataFrame, ax=None):
     # individuelle.
 
     return fig, ax
+
+
+# --- BLOC 3 : analyse de la satisfaction -----------------------------------
+
+def plot_review_distribution(df: pd.DataFrame, ax=None):
+    """Barplot de avg_review_score arrondi aux valeurs entieres 1 a 5. Les
+    scores Olist sont discrets (1-5) ; un histogramme a bins continus serait
+    trompeur, un barplot sur les 5 valeurs possibles est plus lisible."""
+    fig, ax = _get_fig_ax(ax)
+
+    buckets = df["avg_review_score"].round().value_counts().reindex([1, 2, 3, 4, 5], fill_value=0)
+    ax.bar(buckets.index.astype(str), buckets.values, color=DEFAULT_COLOR)
+    ax.set_title("Distribution de avg_review_score (arrondi 1 a 5)")
+    ax.set_xlabel("avg_review_score")
+    ax.set_ylabel("Nombre de clients")
+    # INSIGHT : les scores sont fortement concentres sur 4 et 5, la
+    # satisfaction moyenne est elevee dans l'ensemble ; les scores bas (1-2)
+    # sont minoritaires mais representent un signal de risque de churn a
+    # surveiller specifiquement.
+
+    return fig, ax
+
+
+def plot_review_by_category(df: pd.DataFrame, ax=None):
+    """Barplot horizontal du score moyen par categorie, limite au top 10 des
+    categories les plus frequentes. L'horizontal evite que les noms de
+    categorie (longs, en anglais) se chevauchent sur l'axe x."""
+    fig, ax = _get_fig_ax(ax, figsize=(9, 6))
+
+    top_categories = df["most_frequent_category"].value_counts().head(10).index
+    mean_scores = (
+        df[df["most_frequent_category"].isin(top_categories)]
+        .groupby("most_frequent_category")["avg_review_score"]
+        .mean()
+        .sort_values()
+    )
+
+    ax.barh(mean_scores.index, mean_scores.values, color=DEFAULT_COLOR)
+    ax.set_title("Score moyen par categorie (top 10 categories les plus frequentes)")
+    ax.set_xlabel("avg_review_score moyen")
+    ax.set_ylabel("most_frequent_category")
+    # INSIGHT : l'ecart de satisfaction entre categories est faible en valeur
+    # absolue (toutes proches de 4/5), donc la categorie de produit n'est
+    # probablement pas un levier fort pour expliquer le churn a elle seule.
+
+    return fig, ax
+
+
+def plot_review_vs_orders(df: pd.DataFrame, ax=None):
+    """Scatter avg_review_score vs total_orders, alpha=0.3 pour attenuer le
+    sur-plotting (des dizaines de milliers de clients partagent les memes
+    couples de valeurs entieres/quasi-entieres)."""
+    fig, ax = _get_fig_ax(ax)
+
+    ax.scatter(df["total_orders"], df["avg_review_score"], alpha=0.3, color=DEFAULT_COLOR)
+    ax.set_title("avg_review_score vs total_orders")
+    ax.set_xlabel("total_orders")
+    ax.set_ylabel("avg_review_score")
+    # INSIGHT : aucune tendance forte ne se degage visuellement entre nombre
+    # de commandes et satisfaction moyenne, un bon score n'implique pas
+    # mecaniquement plus de commandes futures.
+
+    return fig, ax
