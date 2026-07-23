@@ -194,3 +194,75 @@ def plot_review_vs_orders(df: pd.DataFrame, ax=None):
     # mecaniquement plus de commandes futures.
 
     return fig, ax
+
+
+# --- BLOC 4 : analyse geographique et correlations -------------------------
+
+def plot_clients_by_state(df: pd.DataFrame, ax=None):
+    """Barplot horizontal du top 10 des etats par nombre de clients.
+    L'horizontal evite le chevauchement des codes d'etat et permet de trier
+    facilement du plus grand au plus petit de haut en bas."""
+    fig, ax = _get_fig_ax(ax, figsize=(9, 6))
+
+    top_states = df["customer_state"].value_counts().head(10).sort_values()
+    ax.barh(top_states.index, top_states.values, color=DEFAULT_COLOR)
+    ax.set_title("Top 10 etats par nombre de clients")
+    ax.set_xlabel("Nombre de clients")
+    ax.set_ylabel("customer_state")
+    # INSIGHT : la clientele est tres concentree geographiquement (SP domine
+    # tres largement), ce qui pese sur la logistique et peut aussi biaiser
+    # tout modele entraine sur ces donnees vers les comportements de cet etat.
+
+    return fig, ax
+
+
+def plot_orders_timeline(df: pd.DataFrame, ax=None):
+    """Line chart du nombre de clients par mois de premiere commande. Une
+    courbe temporelle est le format naturel pour montrer une tendance
+    d'acquisition dans le temps (croissance, plateau, saisonnalite)."""
+    fig, ax = _get_fig_ax(ax, figsize=(11, 5))
+
+    monthly_new_customers = (
+        df["first_order_date"].dt.to_period("M").astype(str).value_counts().sort_index()
+    )
+    ax.plot(monthly_new_customers.index, monthly_new_customers.values, marker="o", color=DEFAULT_COLOR)
+    ax.set_title("Nombre de nouveaux clients par mois (premiere commande)")
+    ax.set_xlabel("Mois")
+    ax.set_ylabel("Nombre de nouveaux clients")
+    ax.tick_params(axis="x", rotation=45)
+    # INSIGHT : l'acquisition croit fortement jusqu'a fin 2017 / debut 2018
+    # avant de plafonner, un signal a rapprocher du taux de reachat tres
+    # faible observe au Bloc 1 : la croissance vient des nouveaux clients,
+    # pas de la fidelisation des anciens.
+
+    return fig, ax
+
+
+def plot_correlation_matrix(df: pd.DataFrame, ax=None):
+    """Heatmap des correlations entre total_orders, total_spent et
+    avg_review_score. Une correlation est une donnee de polarite (positive ou
+    negative autour de 0), donc contrairement aux autres graphes de ce
+    module, on utilise ici une colormap divergente (RdBu_r, centree sur 0)
+    plutot que la teinte unique #4C72B0 : une teinte unique ne peut pas
+    representer un signe."""
+    fig, ax = _get_fig_ax(ax, figsize=(6, 5))
+
+    columns = ["total_orders", "total_spent", "avg_review_score"]
+    corr = df[columns].corr()
+
+    im = ax.imshow(corr, cmap="RdBu_r", vmin=-1, vmax=1)
+    ax.set_xticks(range(len(columns)))
+    ax.set_yticks(range(len(columns)))
+    ax.set_xticklabels(columns, rotation=45, ha="right")
+    ax.set_yticklabels(columns)
+    for i in range(len(columns)):
+        for j in range(len(columns)):
+            ax.text(j, i, f"{corr.iloc[i, j]:.2f}", ha="center", va="center", color="black")
+    fig.colorbar(im, ax=ax, label="correlation")
+    ax.set_title("Correlations entre total_orders, total_spent, avg_review_score")
+    # INSIGHT : total_orders et total_spent sont correles positivement (plus
+    # de commandes = plus de depense cumulee, attendu par construction) tandis
+    # que avg_review_score est quasi decorrele des deux, confirmant l'absence
+    # de lien fort observee au scatter du Bloc 3.
+
+    return fig, ax
