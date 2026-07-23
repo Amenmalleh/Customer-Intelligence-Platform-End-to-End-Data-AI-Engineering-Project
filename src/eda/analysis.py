@@ -85,3 +85,49 @@ def plot_retention_curve(df: pd.DataFrame, ax=None):
     # adresser, plus que la valeur moyenne par commande.
 
     return fig, ax
+
+
+# --- BLOC 2 : analyse monetaire --------------------------------------------
+
+def plot_spent_distribution(df: pd.DataFrame, ax=None):
+    """Histogramme de total_spent avec echelle log sur l'axe x : la depense
+    client est fortement asymetrique (quelques gros comptes, beaucoup de
+    petits paniers), une echelle lineaire ecraserait la masse des petites
+    valeurs dans une poignee de barres."""
+    fig, ax = _get_fig_ax(ax)
+
+    ax.hist(df["total_spent"], bins=50, color=DEFAULT_COLOR)
+    ax.set_xscale("log")
+    ax.set_title("Distribution de total_spent par client (echelle log)")
+    ax.set_xlabel("total_spent (log)")
+    ax.set_ylabel("Nombre de clients")
+    # INSIGHT : la distribution log-normale typique du e-commerce se confirme
+    # ici ; la majorite des clients depense dans une fourchette moderee, avec
+    # une longue traine de gros acheteurs qui tirent la moyenne vers le haut.
+
+    return fig, ax
+
+
+def plot_spent_by_state(df: pd.DataFrame, ax=None):
+    """Boxplot de total_spent pour le top 5 des etats par nombre de clients.
+    Le boxplot permet de comparer a la fois la mediane et la dispersion entre
+    etats, plus informatif qu'une simple moyenne par etat pour une variable
+    aussi asymetrique que total_spent."""
+    fig, ax = _get_fig_ax(ax, figsize=(9, 5))
+
+    top_states = df["customer_state"].value_counts().head(5).index.tolist()
+    data = [df.loc[df["customer_state"] == state, "total_spent"] for state in top_states]
+
+    box = ax.boxplot(data, tick_labels=top_states, patch_artist=True)
+    for patch in box["boxes"]:
+        patch.set_facecolor(DEFAULT_COLOR)
+        patch.set_alpha(0.7)
+    ax.set_title("total_spent par etat (top 5 etats par nombre de clients)")
+    ax.set_xlabel("customer_state")
+    ax.set_ylabel("total_spent")
+    # INSIGHT : les medianes de depense sont proches d'un etat a l'autre malgre
+    # des volumes de clients tres differents, ce qui suggere que la geographie
+    # pese surtout sur l'acquisition (nombre de clients), pas sur leur valeur
+    # individuelle.
+
+    return fig, ax
