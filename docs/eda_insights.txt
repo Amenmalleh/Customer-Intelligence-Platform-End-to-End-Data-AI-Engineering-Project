@@ -1,0 +1,24 @@
+KPI BUSINESS - Olist (dataset client agrege, Phase 4 EDA)
+Date du rapport : 2026-07-24T12:56:38
+Date de reference (max last_order_date) : 2018-08-29
+
+% clients avec exactement 1 commande : 97.00%
+% clients churned (recency > 180 jours depuis la date de reference) : 58.92%
+Montant median depense (total_spent) : 113.14
+Score de satisfaction moyen (avg_review_score) : 4.16
+
+Top 3 categories les plus achetees :
+  - bed_bath_table: 8899 clients
+  - health_beauty: 8369 clients
+  - sports_leisure: 7139 clients
+
+Top 3 etats par nombre de clients :
+  - SP: 39150 clients
+  - RJ: 11913 clients
+  - MG: 10996 clients
+
+Nombre de clients par segment de depense :
+  - low: 15223 clients
+  - medium: 54448 clients
+  - high: 16687 clients
+  - very_high: 7000 clients
