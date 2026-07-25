@@ -14,7 +14,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -140,6 +140,45 @@ def encode_categorical(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Colonne source -> colonne scaled : les noms ne suivent pas tous le meme
+# suffixe brut (ex. monetary_log -> monetary_scaled, pas monetary_log_scaled)
+# car ce sont les noms courts demandes pour les features de clustering.
+SCALE_COLUMN_MAP = {
+    "recency_days": "recency_scaled",
+    "frequency": "frequency_scaled",
+    "monetary_log": "monetary_scaled",
+    "customer_tenure_days": "tenure_scaled",
+    "avg_review_score": "review_scaled",
+}
+
+
+def normalize_features(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 4 : normalise 5 features numeriques avec StandardScaler en vue
+    du clustering (Phase 6).
+
+    StandardScaler (moyenne 0, ecart-type 1) plutot qu'un MinMaxScaler : les
+    algorithmes de clustering bases sur une distance (K-Means notamment,
+    prevu Phase 6) sont sensibles a l'echelle relative des features, et
+    monetary_log/recency_days/customer_tenure_days n'ont pas les memes
+    unites ni la meme variance. Le scaler est fit sur l'ensemble du dataset
+    et sauvegarde pour etre reapplique tel quel sur de nouvelles donnees.
+    """
+    df = df.copy()
+    ENCODERS_DIR.mkdir(parents=True, exist_ok=True)
+
+    source_columns = list(SCALE_COLUMN_MAP.keys())
+    scaled_columns = list(SCALE_COLUMN_MAP.values())
+
+    scaler = StandardScaler()
+    df[scaled_columns] = scaler.fit_transform(df[source_columns])
+    joblib.dump(scaler, ENCODERS_DIR / "scaler.pkl")
+
+    print(f"[ETAPE 4] StandardScaler applique sur {source_columns} -> {scaled_columns}")
+    print(f"[ETAPE 4] Scaler sauvegarde dans {ENCODERS_DIR / 'scaler.pkl'}")
+
+    return df
+
+
 def run_feature_engineering() -> pd.DataFrame:
     print(f"=== Feature engineering Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -149,6 +188,7 @@ def run_feature_engineering() -> pd.DataFrame:
     df = compute_recency_and_churn(df)
     df = compute_rfm_scores(df)
     df = encode_categorical(df)
+    df = normalize_features(df)
 
     return df
 
