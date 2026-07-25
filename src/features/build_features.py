@@ -11,8 +11,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -105,6 +107,39 @@ def compute_rfm_scores(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def encode_categorical(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 3 : encode customer_state et most_frequent_category avec
+    sklearn LabelEncoder.
+
+    most_frequent_category contient des NaN (clients dont aucune categorie
+    n'a pu etre resolue lors de l'agregation en Phase 3) : LabelEncoder ne
+    sait pas encoder un NaN, on le remplace par la categorie explicite
+    'unknown' avant l'encodage plutot que de supprimer ces lignes, pour ne
+    perdre aucun client. Les deux encodeurs sont sauvegardes pour pouvoir
+    appliquer exactement le meme mapping sur de nouvelles donnees (API
+    d'inference en Phase 8+).
+    """
+    df = df.copy()
+    ENCODERS_DIR.mkdir(parents=True, exist_ok=True)
+
+    state_encoder = LabelEncoder()
+    df["state_encoded"] = state_encoder.fit_transform(df["customer_state"])
+    joblib.dump(state_encoder, ENCODERS_DIR / "label_encoder_state.pkl")
+
+    category_filled = df["most_frequent_category"].fillna("unknown")
+    category_encoder = LabelEncoder()
+    df["category_encoded"] = category_encoder.fit_transform(category_filled)
+    joblib.dump(category_encoder, ENCODERS_DIR / "label_encoder_category.pkl")
+
+    print(
+        f"[ETAPE 3] state_encoded : {len(state_encoder.classes_)} etats distincts | "
+        f"category_encoded : {len(category_encoder.classes_)} categories distinctes (NaN -> 'unknown')"
+    )
+    print(f"[ETAPE 3] Encodeurs sauvegardes dans {ENCODERS_DIR}")
+
+    return df
+
+
 def run_feature_engineering() -> pd.DataFrame:
     print(f"=== Feature engineering Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -113,6 +148,7 @@ def run_feature_engineering() -> pd.DataFrame:
 
     df = compute_recency_and_churn(df)
     df = compute_rfm_scores(df)
+    df = encode_categorical(df)
 
     return df
 
