@@ -16,3 +16,12 @@ python-dateutil==2.9.0.post0
 six==1.17.0
 tzdata==2026.3
 et_xmlfile==2.0.0
+
+# Phase 5 — Feature engineering (encodage, normalisation, RFM)
+scikit-learn==1.9.0
+
+# Dépendances transitives de scikit-learn (épinglées pour reproductibilité)
+scipy==1.18.0
+joblib==1.5.3
+threadpoolctl==3.6.0
+narwhals==2.24.0

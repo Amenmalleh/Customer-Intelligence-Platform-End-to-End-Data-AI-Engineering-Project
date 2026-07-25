@@ -1,0 +1,72 @@
+RAPPORT DE FEATURE ENGINEERING - Olist (Phase 5)
+Date de generation : 2026-07-25T14:17:24
+Fichier analyse : C:\Users\amenm\Desktop\Customer Intelligence Platform\Customer-Intelligence-Platform-End-to-End-Data-AI-Engineering-Project\data\processed\olist_features.csv
+Shape : 93358 lignes x 25 colonnes
+
+Liste des features :
+  - customer_unique_id (str) : Identifiant unique du client (cle primaire).
+  - total_orders (int64) : Nombre de commandes distinctes passees par le client.
+  - total_spent (float64) : Somme des payment_value sur toutes les commandes du client.
+  - avg_review_score (float64) : Moyenne des review_score du client (1-5).
+  - first_order_date (datetime64[us]) : Date de la premiere commande du client.
+  - last_order_date (datetime64[us]) : Date de la derniere commande du client.
+  - most_frequent_category (str) : Categorie de produit la plus achetee par le client.
+  - customer_state (str) : Etat brasilien du client.
+  - recency_days (int64) : Nombre de jours entre last_order_date et la date de reference (max(last_order_date)).
+  - churn (int64) : Label cible : 1 si recency_days > seuil de churn (180j par defaut), sinon 0.
+  - frequency (int64) : Alias RFM de total_orders.
+  - monetary_log (float64) : log(total_spent + 1) : version log-transformee de la depense pour attenuer l'asymetrie.
+  - customer_tenure_days (int64) : Nombre de jours entre first_order_date et last_order_date.
+  - avg_days_between_orders (float64) : customer_tenure_days / (frequency - 1), 0 si une seule commande.
+  - R_score (int64) : Score de recency en quartile (1=pire, 4=meilleur), inverse.
+  - F_score (int64) : Score de frequency en quartile base sur le rang (1=pire, 4=meilleur).
+  - M_score (int64) : Score de monetary_log en quartile (1=pire, 4=meilleur).
+  - rfm_score (float64) : Moyenne des R_score/F_score/M_score.
+  - state_encoded (int64) : Encodage LabelEncoder de customer_state.
+  - category_encoded (int64) : Encodage LabelEncoder de most_frequent_category (NaN -> 'unknown').
+  - recency_scaled (float64) : recency_days apres StandardScaler.
+  - frequency_scaled (float64) : frequency apres StandardScaler.
+  - monetary_scaled (float64) : monetary_log apres StandardScaler.
+  - tenure_scaled (float64) : customer_tenure_days apres StandardScaler.
+  - review_scaled (float64) : avg_review_score apres StandardScaler.
+
+Distribution du label churn :
+  - churn=0 : 41.08%
+  - churn=1 : 58.92%
+
+Statistiques descriptives (recency_days, frequency, monetary_log, rfm_score) :
+       recency_days     frequency  monetary_log     rfm_score
+count  93358.000000  93358.000000  93358.000000  93358.000000
+mean     236.941773      1.033420      4.814131      2.500893
+std      152.591453      0.209097      0.908603      0.657146
+min        0.000000      1.000000      2.359910      1.000000
+25%      113.000000      1.000000      4.171768      2.000000
+50%      218.000000      1.000000      4.737426      2.333333
+75%      345.000000      1.000000      5.316341      3.000000
+max      713.000000     15.000000     11.601976      4.000000
+
+Correlation de chaque feature numerique avec churn (triee par |correlation| decroissante) :
+  - R_score: -0.8268
+  - recency_days: 0.7948
+  - recency_scaled: 0.7948
+  - rfm_score: -0.4786
+  - tenure_scaled: -0.0542
+  - customer_tenure_days: -0.0542
+  - avg_days_between_orders: -0.0519
+  - state_encoded: -0.0379
+  - avg_review_score: -0.0235
+  - review_scaled: -0.0235
+  - category_encoded: 0.0211
+  - monetary_scaled: -0.0162
+  - monetary_log: -0.0162
+  - frequency: -0.0154
+  - total_orders: -0.0154
+  - frequency_scaled: -0.0154
+  - M_score: -0.0143
+  - total_spent: -0.0061
+  - F_score: -0.0026
+
+Recommandation sur le desequilibre de classes :
+  - La repartition churn=0 (41.08%) / churn=1 (58.92%) est un desequilibre modere (~60/40), pas un cas extreme (ex. fraude a 1%). SMOTE ou un sur-echantillonnage agressif ne sont donc pas necessaires a ce stade.
+  - Un modele naif qui predirait toujours churn=1 atteindrait deja ~58.92% d'accuracy : l'accuracy seule sera trompeuse pour evaluer le modele de la Phase 7. Privilegier F1-score, precision/recall par classe et ROC-AUC.
+  - Utiliser un split train/test stratifie sur churn, et envisager class_weight='balanced' (ou equivalent) dans le modele de classification plutot qu'un rebalancement des donnees.
