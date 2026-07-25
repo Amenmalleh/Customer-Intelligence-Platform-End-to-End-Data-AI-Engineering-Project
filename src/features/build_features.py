@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -47,6 +48,63 @@ def compute_recency_and_churn(df: pd.DataFrame, churn_threshold_days: int = conf
     return df
 
 
+def compute_rfm_scores(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 2 : calcule les scores RFM (Recency / Frequency / Monetary).
+
+    - frequency : total_orders renomme pour la clarte du vocabulaire RFM.
+    - monetary_log = log(total_spent + 1) : total_spent est fortement
+      asymetrique (cf. Phase 4 EDA), le log ramene la distribution vers une
+      forme plus proche de la normale avant de la quantiler ou de la scaler.
+      Le +1 evite log(0) pour un total_spent nul (ne devrait pas arriver
+      apres la Phase 3, mais reste sans effet si total_spent > 0).
+    - customer_tenure_days : duree entre premiere et derniere commande ;
+      avg_days_between_orders : tenure / (frequency - 1) si frequency > 1,
+      sinon 0 (un client a une seule commande n'a pas d'intervalle a mesurer).
+    - R_score : pd.qcut(recency_days, q=4, labels=[4,3,2,1]) — inverse
+      volontairement : une recency elevee (client absent depuis longtemps)
+      merite le plus mauvais score (1), une recency faible le meilleur (4).
+    - F_score : total_orders est extremement asymetrique (97% des clients
+      n'ont qu'une seule commande, cf. Phase 4), donc pd.qcut(frequency, q=4,
+      duplicates='drop') echoue : les bornes de quartile se confondent en un
+      seul bin (Q1=Q2=Q3=1) et pandas ne peut pas caser 4 labels sur une
+      seule categorie. On qcut a la place sur le RANG de frequency
+      (`.rank(method='first')`), une technique standard pour scorer une
+      variable avec beaucoup d'ex-aequo : elle garantit 4 groupes de taille
+      egale et respecte l'ordre (frequency plus elevee => F_score jamais
+      inferieur), au prix d'un depart quasi arbitraire entre clients ayant
+      exactement 1 commande.
+    - M_score : pd.qcut(monetary_log, q=4, labels=[1,2,3,4]), sans probleme
+      de doublons ici car monetary_log est une variable continue.
+    - rfm_score : moyenne (float) des 3 scores, plus simple qu'une
+      concatenation de chiffres pour un usage direct en feature numerique de
+      clustering/scoring dans les phases suivantes.
+    """
+    df = df.copy()
+
+    df["frequency"] = df["total_orders"]
+    df["monetary_log"] = np.log(df["total_spent"] + 1)
+    df["customer_tenure_days"] = (df["last_order_date"] - df["first_order_date"]).dt.days
+    df["avg_days_between_orders"] = np.where(
+        df["frequency"] > 1,
+        df["customer_tenure_days"] / (df["frequency"] - 1),
+        0,
+    )
+
+    df["R_score"] = pd.qcut(df["recency_days"], q=4, labels=[4, 3, 2, 1]).astype(int)
+    df["F_score"] = pd.qcut(
+        df["frequency"].rank(method="first"), q=4, labels=[1, 2, 3, 4]
+    ).astype(int)
+    df["M_score"] = pd.qcut(df["monetary_log"], q=4, labels=[1, 2, 3, 4]).astype(int)
+    df["rfm_score"] = df[["R_score", "F_score", "M_score"]].mean(axis=1)
+
+    print(
+        f"[ETAPE 2] RFM : frequency/monetary_log/customer_tenure_days/avg_days_between_orders calcules ; "
+        f"R_score, F_score (base sur le rang, cf. docstring), M_score, rfm_score (moyenne={df['rfm_score'].mean():.2f})"
+    )
+
+    return df
+
+
 def run_feature_engineering() -> pd.DataFrame:
     print(f"=== Feature engineering Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -54,6 +112,7 @@ def run_feature_engineering() -> pd.DataFrame:
     print(f"Chargement : {df.shape[0]} lignes x {df.shape[1]} colonnes")
 
     df = compute_recency_and_churn(df)
+    df = compute_rfm_scores(df)
 
     return df
 
