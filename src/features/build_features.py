@@ -179,6 +179,32 @@ def normalize_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def save_features(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 5 : sauvegarde les deux datasets finaux de la Phase 5.
+
+    olist_features.csv garde toutes les colonnes (brutes + engineered) pour
+    l'exploration et le modele de churn (Phase 7), qui peut vouloir des
+    features non scalees (ex. arbres de decision). olist_features_scaled.csv
+    ne garde que les colonnes deja normalisees + churn + l'identifiant, pret
+    a l'emploi pour le clustering (Phase 6) sans dupliquer de logique de
+    scaling dans cette phase-la.
+    """
+    config.PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    df.to_csv(FEATURES_FILE, index=False, encoding="utf-8-sig")
+
+    scaled_df = df[["customer_unique_id", "churn"] + SCALED_COLUMNS]
+    scaled_df.to_csv(FEATURES_SCALED_FILE, index=False, encoding="utf-8-sig")
+
+    churn_dist = df["churn"].value_counts(normalize=True).mul(100).round(2)
+    print(f"[ETAPE 5] {FEATURES_FILE} : {df.shape[0]} lignes x {df.shape[1]} colonnes")
+    print(f"[ETAPE 5] Colonnes : {list(df.columns)}")
+    print(f"[ETAPE 5] {FEATURES_SCALED_FILE} : {scaled_df.shape[0]} lignes x {scaled_df.shape[1]} colonnes")
+    print(f"[ETAPE 5] Distribution churn : churn=0 {churn_dist.get(0, 0.0)}% | churn=1 {churn_dist.get(1, 0.0)}%")
+
+    return df
+
+
 def run_feature_engineering() -> pd.DataFrame:
     print(f"=== Feature engineering Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -189,6 +215,7 @@ def run_feature_engineering() -> pd.DataFrame:
     df = compute_rfm_scores(df)
     df = encode_categorical(df)
     df = normalize_features(df)
+    df = save_features(df)
 
     return df
 
