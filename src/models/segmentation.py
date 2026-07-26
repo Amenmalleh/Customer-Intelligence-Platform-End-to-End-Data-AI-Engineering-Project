@@ -214,6 +214,42 @@ def compare_with_dbscan(X):
     return model, labels, score
 
 
+def hierarchical_clustering_sample(df: pd.DataFrame, sample_size: int = 3000, random_state: int = 42):
+    """ETAPE 5 : clustering hierarchique (AgglomerativeClustering, linkage
+    Ward par defaut) sur un echantillon de 3000 clients.
+
+    Un dendrogramme ou un linkage complet sur 93 358 clients ne serait ni
+    lisible ni raisonnable a calculer (complexite O(n^2) ou pire en memoire
+    pour scipy.cluster.hierarchy.linkage) : un echantillon aleatoire de 3000
+    clients suffit pour visualiser la structure hierarchique et comparer les
+    clusters a ceux de K-Means. linkage='ward' est utilise cote scipy pour
+    rester coherent avec le linkage par defaut de AgglomerativeClustering.
+    """
+    sample = df.sample(n=sample_size, random_state=random_state)
+    X_sample = sample[CLUSTERING_FEATURES].values
+
+    agglo = AgglomerativeClustering(n_clusters=4, linkage="ward")
+    hier_labels = agglo.fit_predict(X_sample)
+
+    linkage_matrix = linkage(X_sample, method="ward")
+    fig, ax = plt.subplots(figsize=(14, 6))
+    dendrogram(linkage_matrix, ax=ax, truncate_mode="lastp", p=30, no_labels=True)
+    ax.set_title(f"Dendrogramme (clustering hierarchique, echantillon n={sample_size})")
+    ax.set_xlabel("Clients (feuilles regroupees, 30 dernieres fusions)")
+    ax.set_ylabel("Distance (Ward)")
+    plt.tight_layout()
+
+    config.DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    fig.savefig(DENDROGRAM_PLOT)
+
+    ari = adjusted_rand_score(sample["segment"], hier_labels)
+    print(f"[ETAPE 5] AgglomerativeClustering(n_clusters=4) sur echantillon n={sample_size}")
+    print(f"[ETAPE 5] Adjusted Rand Score vs K-Means : {ari:.4f}")
+    print(f"[ETAPE 5] Dendrogramme sauvegarde dans {DENDROGRAM_PLOT}")
+
+    return hier_labels, ari, fig
+
+
 def run_segmentation():
     print(f"=== Segmentation client Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -230,6 +266,7 @@ def run_segmentation():
     merged_df = interpret_segments(merged_df)
 
     compare_with_dbscan(X)
+    hierarchical_clustering_sample(merged_df)
 
     return merged_df
 
