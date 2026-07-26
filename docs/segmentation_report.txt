@@ -1,0 +1,27 @@
+RAPPORT DE SEGMENTATION CLIENT - Olist (Phase 6)
+Date de generation : 2026-07-27T10:25:04
+Fichier segmente : C:\Users\amenm\Desktop\Customer Intelligence Platform\Customer-Intelligence-Platform-End-to-End-Data-AI-Engineering-Project\data\processed\olist_segments.csv
+Shape : 93358 lignes x 27 colonnes
+
+k optimal (silhouette score, k=2 a 9) : k=2 (score=0.6915)
+Justification du choix final k=4 (au lieu du k optimal statistique) : 4 segments correspondent au standard business RFM (Champions/Fideles/A Risque/Perdus), avec une action marketing differenciee par segment. k=2 aurait un meilleur silhouette score mais ne separerait pas les clients a fort potentiel des clients a risque, ce qui le rend inexploitable pour le marketing cible demande ici.
+
+Profil moyen par segment (segments et tailles) :
+         recency_days  frequency  total_spent  avg_review_score  customer_tenure_days  rfm_score  count    pct segment_name
+segment                                                                                                                    
+2          219.294538   2.113888   486.380582          4.206403             87.792931   3.378198   2801   3.00    Champions
+0          122.815728   1.000000   179.114209          4.684109              0.000000   2.729793  42893  45.94      Fideles
+3          230.781019   1.000000   308.692599          1.665563              0.000000   2.576959  15257  16.34     A Risque
+1          392.421545   1.000000   189.072091          4.633937              0.000000   2.086288  32407  34.71       Perdus
+
+Recommandations marketing par segment :
+  - Champions : Multi-acheteurs a plus forte depense et meilleure satisfaction. Programme de fidelite / acces anticipe aux nouveautes / cross-sell : ce sont les clients les plus rentables, prioriser leur retention plutot que leur acquisition.
+  - Fideles : Acheteurs recents tres satisfaits mais encore a une seule commande. Relance ciblee (email/promo J+30-60) pour transformer le premier achat en reachat, avant que la recency ne se degrade vers le segment 'A Risque' ou 'Perdus'.
+  - A Risque : Satisfaction tres basse (avg_review_score ~1.7) : signal dominant, plus que la recency/frequence. Prioriser une enquete de satisfaction ou un geste commercial cible pour comprendre et corriger la cause de l'insatisfaction avant perte definitive du client.
+  - Perdus : Recency la plus haute, une seule commande ancienne. Campagne de reactivation a faible cout (remise agressive, relance ponctuelle) ou desinvestissement si le cout de reconquete depasse la valeur potentielle du client.
+
+Comparaison K-Means vs DBSCAN vs Clustering Hierarchique :
+  - K-Means (k=4, retenu) : 4 segments de tailles exploitables, directement actionnables par le marketing (noms/recommandations ci-dessus).
+  - DBSCAN (eps=0.5, min_samples=5) : 19 clusters, 1.30% de bruit, silhouette=0.2717
+    Trop de clusters fragmentes pour du marketing (pas de k impose), utile surtout pour isoler des points aberrants (bruit).
+  - Clustering hierarchique (AgglomerativeClustering, n_clusters=4, echantillon n=3000) : Adjusted Rand Score vs K-Means = 0.2917 (accord modere). Confirme que la structure en 4 groupes est plausible mais sensible a la methode de linkage ; K-Means reste retenu pour sa simplicite, sa rapidite sur les 93 358 clients complets et son k explicite.

@@ -98,7 +98,7 @@ def find_optimal_k(X, k_range=range(2, 10)):
     print(f"[ETAPE 1] Meilleur k selon silhouette score : {best_k} (score={best_score:.4f})")
     print(f"[ETAPE 1] Graphique sauvegarde dans {ELBOW_SILHOUETTE_PLOT}")
 
-    return best_k, fig
+    return best_k, best_score, fig
 
 
 def train_kmeans(X, n_clusters: int = 4, random_state: int = 42):
@@ -211,7 +211,7 @@ def compare_with_dbscan(X):
         "pour reperer des points aberrants (bruit), pas pour segmenter toute la base."
     )
 
-    return model, labels, score
+    return {"n_clusters": n_clusters, "noise_pct": noise_pct, "silhouette": score}
 
 
 def hierarchical_clustering_sample(df: pd.DataFrame, sample_size: int = 3000, random_state: int = 42):
@@ -250,6 +250,105 @@ def hierarchical_clustering_sample(df: pd.DataFrame, sample_size: int = 3000, ra
     return hier_labels, ari, fig
 
 
+SEGMENT_RECOMMENDATIONS = {
+    "Champions": (
+        "Multi-acheteurs a plus forte depense et meilleure satisfaction. Programme de "
+        "fidelite / acces anticipe aux nouveautes / cross-sell : ce sont les clients les "
+        "plus rentables, prioriser leur retention plutot que leur acquisition."
+    ),
+    "Fideles": (
+        "Acheteurs recents tres satisfaits mais encore a une seule commande. Relance "
+        "ciblee (email/promo J+30-60) pour transformer le premier achat en reachat, "
+        "avant que la recency ne se degrade vers le segment 'A Risque' ou 'Perdus'."
+    ),
+    "A Risque": (
+        "Satisfaction tres basse (avg_review_score ~1.7) : signal dominant, plus que la "
+        "recency/frequence. Prioriser une enquete de satisfaction ou un geste commercial "
+        "cible pour comprendre et corriger la cause de l'insatisfaction avant perte "
+        "definitive du client."
+    ),
+    "Perdus": (
+        "Recency la plus haute, une seule commande ancienne. Campagne de reactivation a "
+        "faible cout (remise agressive, relance ponctuelle) ou desinvestissement si le "
+        "cout de reconquete depasse la valeur potentielle du client."
+    ),
+}
+
+
+def save_segments(df: pd.DataFrame, best_k: int, best_k_score: float, dbscan_stats: dict, hierarchical_ari: float) -> pd.DataFrame:
+    """ETAPE 6 : sauvegarde le dataset segmente et le rapport de
+    segmentation complet."""
+    config.PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    df.to_csv(SEGMENTS_FILE, index=False, encoding="utf-8-sig")
+
+    profile = df.groupby("segment")[RAW_PROFILE_FEATURES + ["rfm_score"]].mean()
+    sizes = df["segment"].value_counts()
+    profile["count"] = sizes
+    profile["pct"] = (sizes / len(df) * 100).round(2)
+    profile = profile.sort_values("rfm_score", ascending=False)
+    profile["segment_name"] = SEGMENT_NAMES_BY_RFM_RANK
+
+    lines = [
+        "RAPPORT DE SEGMENTATION CLIENT - Olist (Phase 6)",
+        f"Date de generation : {datetime.now().isoformat(timespec='seconds')}",
+        f"Fichier segmente : {SEGMENTS_FILE}",
+        f"Shape : {df.shape[0]} lignes x {df.shape[1]} colonnes",
+        "",
+        f"k optimal (silhouette score, k=2 a 9) : k={best_k} (score={best_k_score:.4f})",
+        (
+            "Justification du choix final k=4 (au lieu du k optimal statistique) : "
+            "4 segments correspondent au standard business RFM (Champions/Fideles/A "
+            "Risque/Perdus), avec une action marketing differenciee par segment. k=2 "
+            "aurait un meilleur silhouette score mais ne separerait pas les clients "
+            "a fort potentiel des clients a risque, ce qui le rend inexploitable pour "
+            "le marketing cible demande ici."
+        ),
+        "",
+        "Profil moyen par segment (segments et tailles) :",
+        profile.to_string(),
+        "",
+        "Recommandations marketing par segment :",
+    ]
+    for segment_name in SEGMENT_NAMES_BY_RFM_RANK:
+        lines.append(f"  - {segment_name} : {SEGMENT_RECOMMENDATIONS[segment_name]}")
+
+    dbscan_silhouette_display = (
+        f"{dbscan_stats['silhouette']:.4f}" if dbscan_stats["silhouette"] is not None else "N/A"
+    )
+    lines += [
+        "",
+        "Comparaison K-Means vs DBSCAN vs Clustering Hierarchique :",
+        (
+            f"  - K-Means (k=4, retenu) : 4 segments de tailles exploitables, "
+            "directement actionnables par le marketing (noms/recommandations ci-dessus)."
+        ),
+        (
+            f"  - DBSCAN (eps=0.5, min_samples=5) : {dbscan_stats['n_clusters']} clusters, "
+            f"{dbscan_stats['noise_pct']:.2f}% de bruit, silhouette={dbscan_silhouette_display}"
+        ),
+        (
+            "    Trop de clusters fragmentes pour du marketing (pas de k impose), utile "
+            "surtout pour isoler des points aberrants (bruit)."
+        ),
+        (
+            f"  - Clustering hierarchique (AgglomerativeClustering, n_clusters=4, "
+            f"echantillon n=3000) : Adjusted Rand Score vs K-Means = {hierarchical_ari:.4f} "
+            "(accord modere). Confirme que la structure en 4 groupes est plausible mais "
+            "sensible a la methode de linkage ; K-Means reste retenu pour sa simplicite, "
+            "sa rapidite sur les 93 358 clients complets et son k explicite."
+        ),
+    ]
+
+    report_text = "\n".join(lines)
+    config.DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    SEGMENTATION_REPORT_FILE.write_text(report_text, encoding="utf-8")
+
+    print(f"[ETAPE 6] {SEGMENTS_FILE} : {df.shape[0]} lignes x {df.shape[1]} colonnes")
+    print(f"[ETAPE 6] Rapport ecrit dans {SEGMENTATION_REPORT_FILE}")
+
+    return df
+
+
 def run_segmentation():
     print(f"=== Segmentation client Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -257,7 +356,7 @@ def run_segmentation():
     print(f"Chargement : {scaled_df.shape[0]} lignes x {scaled_df.shape[1]} colonnes")
     X = scaled_df[CLUSTERING_FEATURES].values
 
-    find_optimal_k(X)
+    best_k, best_k_score, _ = find_optimal_k(X)
     model, labels = train_kmeans(X)
     scaled_df["segment"] = labels
 
@@ -265,8 +364,10 @@ def run_segmentation():
     merged_df = full_df.merge(scaled_df[["customer_unique_id", "segment"]], on="customer_unique_id", how="inner")
     merged_df = interpret_segments(merged_df)
 
-    compare_with_dbscan(X)
-    hierarchical_clustering_sample(merged_df)
+    dbscan_stats = compare_with_dbscan(X)
+    _, hierarchical_ari, _ = hierarchical_clustering_sample(merged_df)
+
+    merged_df = save_segments(merged_df, best_k, best_k_score, dbscan_stats, hierarchical_ari)
 
     return merged_df
 
