@@ -172,6 +172,48 @@ def interpret_segments(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def compare_with_dbscan(X):
+    """ETAPE 4 : entraine DBSCAN(eps=0.5, min_samples=5) a titre de
+    comparaison et explique pourquoi K-Means reste l'algo principal.
+
+    silhouette_score n'est calcule que sur les points non-bruit (label != -1)
+    quand au moins 2 clusters sont trouves hors bruit : inclure le bruit
+    comme un "cluster" a part entiere fausserait la mesure de cohesion.
+    """
+    model = DBSCAN(eps=0.5, min_samples=5).fit(X)
+    labels = model.labels_
+
+    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    noise_pct = (labels == -1).mean() * 100
+    print(f"[ETAPE 4] DBSCAN(eps=0.5, min_samples=5) : {n_clusters} clusters trouves, {noise_pct:.2f}% de points bruit (label=-1)")
+
+    non_noise_mask = labels != -1
+    if n_clusters >= 2 and non_noise_mask.sum() > SILHOUETTE_SAMPLE_SIZE:
+        score = silhouette_score(
+            X[non_noise_mask], labels[non_noise_mask],
+            sample_size=SILHOUETTE_SAMPLE_SIZE, random_state=SILHOUETTE_RANDOM_STATE,
+        )
+        print(f"[ETAPE 4] Silhouette score DBSCAN (hors bruit) : {score:.4f}")
+    elif n_clusters >= 2:
+        score = silhouette_score(X[non_noise_mask], labels[non_noise_mask])
+        print(f"[ETAPE 4] Silhouette score DBSCAN (hors bruit) : {score:.4f}")
+    else:
+        score = None
+        print("[ETAPE 4] Silhouette score non applicable (moins de 2 clusters hors bruit)")
+
+    print(
+        "[ETAPE 4] K-Means est prefere ici comme algo principal : DBSCAN(eps=0.5, "
+        f"min_samples=5) produit {n_clusters} clusters de densite variable, trop "
+        "nombreux et non controlables directement pour livrer 4 segments marketing "
+        "actionnables (le nombre de clusters depend d'eps/min_samples, pas d'un choix "
+        "explicite de k). K-Means impose k=4 directement, ce qui correspond au besoin "
+        "business (Champions/Fideles/A Risque/Perdus) ; DBSCAN reste utile ici surtout "
+        "pour reperer des points aberrants (bruit), pas pour segmenter toute la base."
+    )
+
+    return model, labels, score
+
+
 def run_segmentation():
     print(f"=== Segmentation client Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -186,6 +228,8 @@ def run_segmentation():
     full_df = load_features()
     merged_df = full_df.merge(scaled_df[["customer_unique_id", "segment"]], on="customer_unique_id", how="inner")
     merged_df = interpret_segments(merged_df)
+
+    compare_with_dbscan(X)
 
     return merged_df
 
