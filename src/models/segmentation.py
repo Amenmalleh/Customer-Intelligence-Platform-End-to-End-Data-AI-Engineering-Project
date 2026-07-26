@@ -128,6 +128,50 @@ def train_kmeans(X, n_clusters: int = 4, random_state: int = 42):
     return model, labels
 
 
+RAW_PROFILE_FEATURES = ["recency_days", "frequency", "total_spent", "avg_review_score", "customer_tenure_days"]
+SEGMENT_NAMES_BY_RFM_RANK = ["Champions", "Fideles", "A Risque", "Perdus"]
+
+
+def interpret_segments(df: pd.DataFrame) -> pd.DataFrame:
+    """ETAPE 3 : calcule le profil moyen (features brutes) de chaque segment
+    et assigne un nom business.
+
+    Les segments sont tries par rfm_score decroissant puis nommes dans
+    l'ordre Champions > Fideles > A Risque > Perdus. Sur ce dataset, 3 des 4
+    segments n'ont que des clients a une seule commande (frequency=1) : ils
+    se distinguent surtout par recency_days et avg_review_score plutot que
+    par un profil RFM complet. En pratique :
+    - "Champions" est le seul segment avec frequency > 1 (multi-acheteurs,
+      total_spent le plus eleve) : correspond bien au profil attendu.
+    - "Fideles" est en realite le segment des acheteurs recents tres
+      satisfaits (meilleure recency, review le plus haut) mais a une seule
+      commande : plus proche de "nouveaux clients prometteurs" que du
+      "fidele" au sens classique.
+    - "A Risque" se distingue surtout par une satisfaction tres basse
+      (avg_review_score ~1.7 contre ~4.6-4.7 ailleurs), pas seulement par
+      une recency/monetary faibles : le signal dominant ici est la
+      satisfaction, pas la RFM pure.
+    - "Perdus" a la plus mauvaise recency et frequency=1 : correspond bien
+      au profil attendu (clients inactifs depuis longtemps).
+    Le nom sert de raccourci marketing actionnable, pas une etiquette RFM
+    exacte a prendre au pied de la lettre pour chaque segment.
+    """
+    df = df.copy()
+
+    profile = df.groupby("segment")[RAW_PROFILE_FEATURES + ["rfm_score"]].mean()
+    profile["count"] = df["segment"].value_counts()
+    profile = profile.sort_values("rfm_score", ascending=False)
+
+    name_mapping = dict(zip(profile.index, SEGMENT_NAMES_BY_RFM_RANK))
+    df["segment_name"] = df["segment"].map(name_mapping)
+
+    profile["segment_name"] = SEGMENT_NAMES_BY_RFM_RANK
+    print("[ETAPE 3] Profils moyens par segment (tries par rfm_score decroissant) :")
+    print(profile.to_string())
+
+    return df
+
+
 def run_segmentation():
     print(f"=== Segmentation client Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -139,7 +183,11 @@ def run_segmentation():
     model, labels = train_kmeans(X)
     scaled_df["segment"] = labels
 
-    return scaled_df
+    full_df = load_features()
+    merged_df = full_df.merge(scaled_df[["customer_unique_id", "segment"]], on="customer_unique_id", how="inner")
+    merged_df = interpret_segments(merged_df)
+
+    return merged_df
 
 
 if __name__ == "__main__":
