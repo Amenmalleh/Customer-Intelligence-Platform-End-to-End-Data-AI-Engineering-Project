@@ -101,6 +101,33 @@ def find_optimal_k(X, k_range=range(2, 10)):
     return best_k, fig
 
 
+def train_kmeans(X, n_clusters: int = 4, random_state: int = 42):
+    """ETAPE 2 : entraine K-Means avec k=4.
+
+    find_optimal_k() (ETAPE 1) trouve k=2 comme meilleur silhouette score sur
+    ce dataset : la population se separe surtout en gros clients "actifs"
+    vs "inactifs" a la premiere coupure naturelle. Mais k=4 est retenu ici
+    par choix business plutot que purement statistique : 4 segments
+    (Champions / Fideles / A Risque / Perdus) sont le standard RFM utilise
+    par le marketing et donnent des actions differenciees exploitables,
+    la ou k=2 ne distinguerait pas par exemple les "Champions" des
+    "Fideles". Un silhouette score plus bas a k=4 (~0.32 vs ~0.69 a k=2)
+    est le prix accepte pour une segmentation plus actionnable.
+    """
+    model = KMeans(n_clusters=n_clusters, init="k-means++", n_init=10, random_state=random_state).fit(X)
+    labels = model.labels_
+
+    distribution = pd.Series(labels).value_counts().sort_index()
+    print(f"[ETAPE 2] K-Means entraine avec k={n_clusters}")
+    print(f"[ETAPE 2] Distribution des segments :\n{distribution.to_string()}")
+
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, KMEANS_MODEL_FILE)
+    print(f"[ETAPE 2] Modele sauvegarde dans {KMEANS_MODEL_FILE}")
+
+    return model, labels
+
+
 def run_segmentation():
     print(f"=== Segmentation client Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -109,6 +136,8 @@ def run_segmentation():
     X = scaled_df[CLUSTERING_FEATURES].values
 
     find_optimal_k(X)
+    model, labels = train_kmeans(X)
+    scaled_df["segment"] = labels
 
     return scaled_df
 
