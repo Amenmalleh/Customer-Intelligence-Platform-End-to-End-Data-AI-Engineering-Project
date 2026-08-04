@@ -26,6 +26,7 @@ from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
 )
+from sklearn.model_selection import RandomizedSearchCV, train_test_split
 from xgboost import XGBClassifier
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -192,6 +193,63 @@ def plot_roc_curves(models: dict, X_test, y_test):
     return fig, ax
 
 
+XGB_LGBM_PARAM_DISTRIBUTIONS = {
+    "n_estimators": [100, 200, 300],
+    "max_depth": [4, 6, 8],
+    "learning_rate": [0.05, 0.1, 0.2],
+    "min_child_weight": [1, 3, 5],
+}
+
+
+def optimize_best_model(X_train, y_train, X_test, y_test, scale_pos_weight, best_model_name, trained_models):
+    """ETAPE 4 : identifie le modele gagnant (meilleur recall, deja trie
+    dans comparison_df) et l'optimise si c'est XGBoost ou LightGBM.
+
+    Sur ce dataset, RandomForest gagne au recall (cf. ETAPE 2), pas XGBoost
+    ni LightGBM : la grille RandomizedSearchCV fournie dans la consigne est
+    specifique a ces deux algos (min_child_weight n'a pas de sens pour
+    RandomForest/LogisticRegression). Dans ce cas, aucune recherche
+    d'hyperparametres n'est definie pour l'algo gagnant : le modele deja
+    entraine en ETAPE 2 est conserve tel quel comme modele final, ce qui est
+    documente explicitement plutot que force artificiellement vers XGBoost/
+    LightGBM pour coller a la grille.
+    """
+    if best_model_name in ("XGBoost", "LightGBM"):
+        base_estimator = (
+            XGBClassifier(scale_pos_weight=scale_pos_weight, random_state=RANDOM_STATE, eval_metric="logloss", verbosity=0)
+            if best_model_name == "XGBoost"
+            else LGBMClassifier(scale_pos_weight=scale_pos_weight, random_state=RANDOM_STATE, verbose=-1)
+        )
+        search = RandomizedSearchCV(
+            base_estimator, param_distributions=XGB_LGBM_PARAM_DISTRIBUTIONS,
+            cv=5, scoring="recall", n_iter=20, random_state=RANDOM_STATE, n_jobs=-1,
+        )
+        search.fit(X_train, y_train)
+        best_model = search.best_estimator_
+        best_params = search.best_params_
+        print(f"[ETAPE 4] Modele gagnant : {best_model_name} -> RandomizedSearchCV applique")
+        print(f"[ETAPE 4] Meilleurs parametres trouves : {best_params}")
+    else:
+        best_model = trained_models[best_model_name]
+        best_params = None
+        print(
+            f"[ETAPE 4] Modele gagnant : {best_model_name} (ni XGBoost ni LightGBM) -> "
+            "grille RandomizedSearchCV non applicable, modele de l'ETAPE 2 conserve tel quel."
+        )
+
+    y_pred = best_model.predict(X_test)
+    y_proba = best_model.predict_proba(X_test)[:, 1]
+    test_metrics = {
+        "recall": recall_score(y_test, y_pred, pos_label=1),
+        "precision": precision_score(y_test, y_pred, pos_label=1),
+        "f1": f1_score(y_test, y_pred, pos_label=1),
+        "roc_auc": roc_auc_score(y_test, y_proba),
+    }
+    print(f"[ETAPE 4] Re-evaluation sur le test set : {test_metrics}")
+
+    return best_model, best_params, test_metrics
+
+
 def run_churn_prediction():
     print(f"=== Churn prediction Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -202,7 +260,17 @@ def run_churn_prediction():
     trained_models, results, comparison_df = train_all_models(X_train, y_train, X_test, y_test, scale_pos_weight)
     plot_roc_curves(trained_models, X_test, y_test)
 
-    return X_train, X_test, y_train, y_test, scale_pos_weight, trained_models, results, comparison_df
+    best_model_name = comparison_df.index[0]
+    best_model, best_params, test_metrics = optimize_best_model(
+        X_train, y_train, X_test, y_test, scale_pos_weight, best_model_name, trained_models
+    )
+
+    return {
+        "X_train": X_train, "X_test": X_test, "y_train": y_train, "y_test": y_test,
+        "scale_pos_weight": scale_pos_weight, "trained_models": trained_models, "results": results,
+        "comparison_df": comparison_df, "best_model_name": best_model_name, "best_model": best_model,
+        "best_params": best_params, "test_metrics": test_metrics,
+    }
 
 
 if __name__ == "__main__":
