@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 import joblib
+import matplotlib.pyplot as plt
 import pandas as pd
 from lightgbm import LGBMClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -23,6 +24,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     roc_auc_score,
+    roc_curve,
 )
 from xgboost import XGBClassifier
 
@@ -155,6 +157,41 @@ def train_all_models(X_train, y_train, X_test, y_test, scale_pos_weight: float):
     return trained_models, results, comparison_df
 
 
+# Palette categorielle fixe (identite du modele, pas une magnitude) : meme
+# logique que les couleurs par segment du notebook 05_segmentation.
+MODEL_COLORS = {
+    "LogisticRegression": "#4C72B0",
+    "RandomForest": "#55A868",
+    "XGBoost": "#DD8452",
+    "LightGBM": "#C44E52",
+}
+
+
+def plot_roc_curves(models: dict, X_test, y_test):
+    """ETAPE 3 : trace les 4 courbes ROC sur un meme graphique, avec la
+    diagonale aleatoire (AUC=0.5) comme reference visuelle."""
+    fig, ax = plt.subplots(figsize=(8, 7))
+
+    for name, model in models.items():
+        y_proba = model.predict_proba(X_test)[:, 1]
+        fpr, tpr, _ = roc_curve(y_test, y_proba)
+        auc = roc_auc_score(y_test, y_proba)
+        ax.plot(fpr, tpr, color=MODEL_COLORS.get(name), label=f"{name} (AUC={auc:.3f})")
+
+    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Aleatoire (AUC=0.5)")
+    ax.set_title("Courbes ROC - comparaison des 4 modeles")
+    ax.set_xlabel("Taux de faux positifs (FPR)")
+    ax.set_ylabel("Taux de vrais positifs (TPR)")
+    ax.legend(loc="lower right")
+
+    plt.tight_layout()
+    config.DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    fig.savefig(ROC_CURVES_PLOT)
+    print(f"[ETAPE 3] Courbes ROC sauvegardees dans {ROC_CURVES_PLOT}")
+
+    return fig, ax
+
+
 def run_churn_prediction():
     print(f"=== Churn prediction Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -163,6 +200,7 @@ def run_churn_prediction():
 
     X_train, X_test, y_train, y_test, scale_pos_weight = prepare_data(df)
     trained_models, results, comparison_df = train_all_models(X_train, y_train, X_test, y_test, scale_pos_weight)
+    plot_roc_curves(trained_models, X_test, y_test)
 
     return X_train, X_test, y_train, y_test, scale_pos_weight, trained_models, results, comparison_df
 
