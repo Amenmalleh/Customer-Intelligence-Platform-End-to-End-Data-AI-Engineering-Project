@@ -31,6 +31,7 @@ from xgboost import XGBClassifier
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from src.eda.analysis import DEFAULT_COLOR
 from src.features.feature_report import load_features
 from src.ingestion import config
 from src.models.segmentation import MODELS_DIR
@@ -250,6 +251,28 @@ def optimize_best_model(X_train, y_train, X_test, y_test, scale_pos_weight, best
     return best_model, best_params, test_metrics
 
 
+def plot_feature_importance(best_model, feature_names):
+    """ETAPE 5 : extrait feature_importances_ du modele gagnant et trace un
+    barplot horizontal trie par importance decroissante."""
+    importances = pd.Series(best_model.feature_importances_, index=feature_names).sort_values(ascending=True)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.barh(importances.index, importances.values, color=DEFAULT_COLOR)
+    ax.set_title("Feature importance - modele gagnant")
+    ax.set_xlabel("Importance")
+    ax.set_ylabel("Feature")
+
+    plt.tight_layout()
+    config.DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    fig.savefig(FEATURE_IMPORTANCE_PLOT)
+
+    top5 = importances.sort_values(ascending=False).head(5)
+    print(f"[ETAPE 5] Top 5 features les plus importantes :\n{top5.to_string()}")
+    print(f"[ETAPE 5] Graphique sauvegarde dans {FEATURE_IMPORTANCE_PLOT}")
+
+    return fig, ax, top5
+
+
 def run_churn_prediction():
     print(f"=== Churn prediction Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -264,12 +287,13 @@ def run_churn_prediction():
     best_model, best_params, test_metrics = optimize_best_model(
         X_train, y_train, X_test, y_test, scale_pos_weight, best_model_name, trained_models
     )
+    _, _, top5_features = plot_feature_importance(best_model, FEATURE_COLUMNS)
 
     return {
         "X_train": X_train, "X_test": X_test, "y_train": y_train, "y_test": y_test,
         "scale_pos_weight": scale_pos_weight, "trained_models": trained_models, "results": results,
         "comparison_df": comparison_df, "best_model_name": best_model_name, "best_model": best_model,
-        "best_params": best_params, "test_metrics": test_metrics,
+        "best_params": best_params, "test_metrics": test_metrics, "top5_features": top5_features,
     }
 
 
