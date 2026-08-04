@@ -13,6 +13,18 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
+from lightgbm import LGBMClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from xgboost import XGBClassifier
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -80,6 +92,69 @@ def prepare_data(df: pd.DataFrame):
     return X_train, X_test, y_train, y_test, scale_pos_weight
 
 
+def build_models(scale_pos_weight: float) -> dict:
+    return {
+        "LogisticRegression": LogisticRegression(class_weight="balanced", max_iter=1000, random_state=RANDOM_STATE),
+        "RandomForest": RandomForestClassifier(
+            n_estimators=100, class_weight="balanced", random_state=RANDOM_STATE, n_jobs=-1
+        ),
+        "XGBoost": XGBClassifier(
+            scale_pos_weight=scale_pos_weight, n_estimators=200, learning_rate=0.1, max_depth=6,
+            random_state=RANDOM_STATE, eval_metric="logloss", verbosity=0,
+        ),
+        "LightGBM": LGBMClassifier(
+            scale_pos_weight=scale_pos_weight, n_estimators=200, learning_rate=0.1, max_depth=6,
+            random_state=RANDOM_STATE, verbose=-1,
+        ),
+    }
+
+
+def train_all_models(X_train, y_train, X_test, y_test, scale_pos_weight: float):
+    """ETAPE 2 : entraine les 4 modeles et les compare sur le test set.
+
+    Signature etendue par rapport a la consigne initiale
+    (train_all_models(X_train, y_train, scale_pos_weight)) : evaluer recall/
+    precision/f1/ROC-AUC sur le test set (demande explicitement juste apres)
+    necessite X_test/y_test, donc ils sont passes en parametres plutot que
+    recalcules ou charges en global.
+    """
+    models = build_models(scale_pos_weight)
+    trained_models = {}
+    results = {}
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        y_proba = model.predict_proba(X_test)[:, 1]
+
+        recall = recall_score(y_test, y_pred, pos_label=1)
+        precision = precision_score(y_test, y_pred, pos_label=1)
+        f1 = f1_score(y_test, y_pred, pos_label=1)
+        roc_auc = roc_auc_score(y_test, y_proba)
+        cm = confusion_matrix(y_test, y_pred)
+
+        print(f"\n--- {name} ---")
+        print(f"recall={recall:.4f} precision={precision:.4f} f1={f1:.4f} roc_auc={roc_auc:.4f}")
+        print("Classification report :")
+        print(classification_report(y_test, y_pred))
+        print(f"Matrice de confusion :\n{cm}")
+
+        trained_models[name] = model
+        results[name] = {
+            "recall": recall, "precision": precision, "f1": f1, "roc_auc": roc_auc,
+            "y_proba": y_proba, "confusion_matrix": cm,
+        }
+
+    comparison_df = pd.DataFrame(
+        {name: {k: v for k, v in r.items() if k in ("recall", "precision", "f1", "roc_auc")} for name, r in results.items()}
+    ).T.sort_values("recall", ascending=False)
+
+    print("\n[ETAPE 2] Tableau comparatif des 4 modeles (trie par recall decroissant) :")
+    print(comparison_df.to_string())
+
+    return trained_models, results, comparison_df
+
+
 def run_churn_prediction():
     print(f"=== Churn prediction Olist - {datetime.now().isoformat(timespec='seconds')} ===\n")
 
@@ -87,8 +162,9 @@ def run_churn_prediction():
     print(f"Chargement : {df.shape[0]} lignes x {df.shape[1]} colonnes")
 
     X_train, X_test, y_train, y_test, scale_pos_weight = prepare_data(df)
+    trained_models, results, comparison_df = train_all_models(X_train, y_train, X_test, y_test, scale_pos_weight)
 
-    return X_train, X_test, y_train, y_test, scale_pos_weight
+    return X_train, X_test, y_train, y_test, scale_pos_weight, trained_models, results, comparison_df
 
 
 if __name__ == "__main__":
